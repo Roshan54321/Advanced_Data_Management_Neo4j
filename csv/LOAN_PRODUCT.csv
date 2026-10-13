@@ -1,0 +1,7 @@
+product_id,lender_id,product_name,interest_rate_type,base_interest_rate,max_lvr,min_loan_amount,max_loan_amount
+1,1,TEB Basic Variable,Variable,6.1,80,50000,1500000
+2,1,TEB Fixed 3yr,Fixed,5.85,80,50000,1500000
+3,2,THF Flexi Home Loan,Variable,6.35,90,50000,2000000
+4,2,THF Investor Fixed,Fixed,6.55,80,80000,2000000
+5,3,NMCU Members Variable,Variable,5.95,85,40000,1200000
+6,3,NMCU First Home Fixed,Fixed,5.75,95,40000,800000

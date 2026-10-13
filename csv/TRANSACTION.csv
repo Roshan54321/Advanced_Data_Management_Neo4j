@@ -1,0 +1,19 @@
+transaction_id,loan_id,transaction_date,amount,transaction_type,description,principal_portion,interest_portion,payment_method,disbursement_method,purpose_description
+1,1,2026-03-01,500000,Disbursement,Initial loan disbursement to settlement agent,,,,EFT,Property settlement funds transfer
+2,2,2026-03-10,430000,Disbursement,Initial loan disbursement to settlement agent,,,,EFT,Property settlement funds transfer
+3,3,2026-03-15,700000,Disbursement,Initial loan disbursement to settlement agent,,,,Bank Cheque,Property settlement funds transfer
+4,4,2026-04-01,330000,Disbursement,Initial loan disbursement to settlement agent,,,,EFT,Property settlement funds transfer
+5,5,2026-04-05,560000,Disbursement,Initial loan disbursement to settlement agent,,,,EFT,Property settlement funds transfer
+6,6,2026-04-15,780000,Disbursement,Initial loan disbursement to settlement agent,,,,EFT,Property settlement funds transfer
+7,1,2026-04-01,3038.15,Repayment,Monthly repayment,540.32,2497.83,Direct Debit,,
+8,1,2026-05-01,3038.15,Repayment,Monthly repayment,543.06,2495.09,Direct Debit,,
+9,1,2026-06-01,3038.15,Repayment,Monthly repayment,545.82,2492.33,Direct Debit,,
+10,2,2026-04-10,2680.5,Repayment,Monthly repayment,401.1,2279.4,Direct Debit,,
+11,2,2026-05-10,2680.5,Repayment,Monthly repayment,403.25,2277.25,Direct Debit,,
+12,3,2026-04-15,4820.9,Repayment,Monthly repayment,780.44,4040.46,BPAY,,
+13,3,2026-05-15,4820.9,Repayment,Monthly repayment,784.68,4036.22,BPAY,,
+14,4,2026-05-01,1928.4,Repayment,Monthly repayment,384.55,1543.85,Direct Debit,,
+15,5,2026-05-05,3980.7,Repayment,Monthly repayment,1076.9,2903.8,Direct Debit,,
+16,5,2026-06-05,3980.7,Repayment,Monthly repayment,1082.24,2898.46,Direct Debit,,
+17,6,2026-05-15,4735.2,Repayment,Monthly repayment,861.35,3873.85,Direct Debit,,
+18,6,2026-06-15,4735.2,Repayment,Monthly repayment,865.75,3869.45,Direct Debit,,

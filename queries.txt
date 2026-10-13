@@ -1,0 +1,112 @@
+// ============================================================
+// Task 3: Graph database queries (queries.txt)
+// ============================================================
+
+// ------------------------------------------------------------
+// USE CASE 1 (SIMPLE): Competitive fixed-rate products
+// Scenario: A broker wants to shortlist fixed-rate loan products under 6%
+// for a rate-sensitive first-home buyer, showing which lender offers each.
+// Pattern: one relationship hop + property filters + ORDER BY.
+// ------------------------------------------------------------
+MATCH (l:Lender)-[:OFFERS]->(p:LoanProduct)
+WHERE p.interest_rate_type = 'Fixed' AND p.base_interest_rate < 6.0
+RETURN l.lender_name AS lender,
+       p.product_name AS product,
+       p.base_interest_rate AS rate,
+       p.max_lvr AS max_lvr
+ORDER BY rate ASC;
+
+
+// ------------------------------------------------------------
+// USE CASE 2 (MODERATE): Broker pipeline report
+// Scenario: A broker manager reviews every mortgage application: customer,
+// broker, property, the customer's ownership stake (if any), and the
+// lender/product applied for.
+// Pattern: 5-hop traversal; OPTIONAL MATCH keeps applications whose applicant is
+// not (yet) a registered owner of the property (mirrors the SQL LEFT JOIN).
+// ------------------------------------------------------------
+MATCH (c:Customer)-[:SUBMITTED]->(a:Application)<-[:MANAGES]-(b:Broker),
+      (a)-[:FOR_PROPERTY]->(p:Property),
+      (l:Lender)-[:OFFERS]->(lp:LoanProduct)<-[:REQUESTS_PRODUCT]-(a)
+OPTIONAL MATCH (c)-[o:OWNS]->(p)
+RETURN a.application_id               AS application_id,
+       c.first_name + ' ' + c.last_name AS customer,
+       b.first_name + ' ' + b.last_name AS broker,
+       p.suburb + ', ' + p.state        AS property_location,
+       o.ownership_percentage           AS ownership_pct,
+       o.ownership_type                 AS ownership_type,
+       lp.product_name                  AS product,
+       l.lender_name                    AS lender,
+       a.requested_amount               AS requested_amount,
+       a.application_status             AS status
+ORDER BY a.application_date;
+
+
+// ------------------------------------------------------------
+// USE CASE 3 (MODERATELY COMPLEX): Lender portfolio performance
+// Scenario: Management wants, per lender, how many applications were received,
+// how many were approved, the total amount disbursed, and total principal /
+// interest collected through repayments to date.
+// Pattern: aggregation over variable-length-free multi-hop paths using
+// WITH + conditional counting + a second MATCH over the transaction subtypes.
+// ------------------------------------------------------------
+MATCH (l:Lender)-[:OFFERS]->(lp:LoanProduct)<-[:REQUESTS_PRODUCT]-(a:Application)
+WITH l,
+     count(a) AS applications,
+     sum(CASE WHEN a.application_status = 'Approved' THEN 1 ELSE 0 END) AS approved
+OPTIONAL MATCH (l)-[:OFFERS]->(:LoanProduct)<-[:REQUESTS_PRODUCT]-(:Application)-[:RESULTED_IN]->(loan:Loan)
+                 -[:HAS_TRANSACTION]->(t:Transaction)
+WITH l, applications, approved,
+     sum(CASE WHEN t:Disbursement THEN t.amount ELSE 0 END)           AS total_disbursed,
+     sum(CASE WHEN t:Repayment    THEN t.principal_portion ELSE 0 END) AS principal_repaid,
+     sum(CASE WHEN t:Repayment    THEN t.interest_portion  ELSE 0 END) AS interest_earned
+RETURN l.lender_name AS lender,
+       applications,
+       approved,
+       round(100.0 * approved / applications, 1) AS approval_rate_pct,
+       total_disbursed,
+       round(principal_repaid, 2) AS principal_repaid,
+       round(interest_earned, 2)  AS interest_earned
+ORDER BY total_disbursed DESC;
+
+
+// ------------------------------------------------------------
+// USE CASE 4 (COMPLEX): Loans priced below the portfolio average rate,
+// with customer, broker, lender, co-owners and valuation-based LVR
+// Scenario: Credit risk wants every active loan priced below the active-book
+// average, with the borrower, who arranged it, who the lender is, the property's
+// latest valuation and the resulting loan-to-value ratio, plus any co-owners
+// of the security property (joint-ownership risk).
+// Pattern: CALL subquery for the average, long traversal path, ordered
+// subquery to pick the latest valuation, list comprehension for co-owners.
+// ------------------------------------------------------------
+CALL () {
+  MATCH (x:Loan {loan_status: 'Active'})
+  RETURN avg(x.interest_rate) AS avg_rate
+}
+MATCH (c:Customer)-[:SUBMITTED]->(a:Application)-[:RESULTED_IN]->(loan:Loan {loan_status: 'Active'})
+WHERE loan.interest_rate < avg_rate
+MATCH (b:Broker)-[:MANAGES]->(a),
+      (a)-[:FOR_PROPERTY]->(p:Property),
+      (lender:Lender)-[:OFFERS]->(:LoanProduct)<-[:REQUESTS_PRODUCT]-(a)
+CALL (p) {
+  MATCH (p)-[:HAS_VALUATION]->(v:Valuation)
+  RETURN v AS latest_val
+  ORDER BY v.valuation_date DESC
+  LIMIT 1
+}
+OPTIONAL MATCH (co:Customer)-[:OWNS]->(p)
+WHERE co <> c
+WITH c, b, lender, loan, p, latest_val, avg_rate,
+     collect(co.first_name + ' ' + co.last_name) AS co_owners
+RETURN loan.loan_id                         AS loan_id,
+       c.first_name + ' ' + c.last_name     AS borrower,
+       b.last_name                          AS broker,
+       lender.lender_name                   AS lender,
+       loan.loan_amount                     AS loan_amount,
+       loan.interest_rate                   AS rate,
+       round(avg_rate, 3)                   AS portfolio_avg_rate,
+       latest_val.valuation_amount          AS latest_valuation,
+       round(100.0 * loan.loan_amount / latest_val.valuation_amount, 1) AS lvr_pct,
+       co_owners
+ORDER BY loan.interest_rate ASC;

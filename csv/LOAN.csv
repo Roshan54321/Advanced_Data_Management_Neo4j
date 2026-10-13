@@ -1,0 +1,7 @@
+loan_id,application_id,loan_amount,interest_rate,loan_term_years,start_date,loan_status
+1,1,500000,6.1,30,2026-03-01,Active
+2,2,430000,6.35,30,2026-03-10,Active
+3,3,700000,6.55,25,2026-03-15,Active
+4,4,330000,5.75,30,2026-04-01,Active
+5,5,560000,5.85,20,2026-04-05,Active
+6,7,780000,6.1,30,2026-04-15,Active

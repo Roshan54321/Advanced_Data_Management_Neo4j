@@ -1,0 +1,10 @@
+property_id,valuation_number,valuation_date,valuation_amount,valuer_name,valuation_method
+1,1,2026-01-15,600000,Darwin Valuations Pty Ltd,Full Inspection
+1,2,2026-06-20,620000,Darwin Valuations Pty Ltd,Desktop
+2,1,2026-02-10,530000,NT Property Valuers,Full Inspection
+3,1,2026-01-25,870000,Top End Valuation Services,Full Inspection
+4,1,2026-03-05,400000,NT Property Valuers,Kerbside
+5,1,2026-02-18,700000,Darwin Valuations Pty Ltd,Full Inspection
+6,1,2026-04-01,360000,NT Property Valuers,Kerbside
+7,1,2026-01-30,950000,Top End Valuation Services,Full Inspection
+8,1,2026-05-12,495000,Darwin Valuations Pty Ltd,Full Inspection

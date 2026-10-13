@@ -1,0 +1,189 @@
+// ============================================================
+// Task 2: Graph database implementation (import.txt)
+// ============================================================
+
+// ------------------------------------------------------------
+// 1. CONSTRAINTS (each uniqueness constraint also creates an index on that key)
+// ------------------------------------------------------------
+CREATE CONSTRAINT customer_id_unique IF NOT EXISTS FOR (n:Customer)    REQUIRE n.customer_id    IS UNIQUE;
+CREATE CONSTRAINT broker_id_unique   IF NOT EXISTS FOR (n:Broker)      REQUIRE n.broker_id      IS UNIQUE;
+CREATE CONSTRAINT lender_id_unique   IF NOT EXISTS FOR (n:Lender)      REQUIRE n.lender_id      IS UNIQUE;
+CREATE CONSTRAINT product_id_unique  IF NOT EXISTS FOR (n:LoanProduct) REQUIRE n.product_id     IS UNIQUE;
+CREATE CONSTRAINT property_id_unique IF NOT EXISTS FOR (n:Property)    REQUIRE n.property_id    IS UNIQUE;
+CREATE CONSTRAINT valuation_id_unique IF NOT EXISTS FOR (n:Valuation)  REQUIRE n.valuation_id   IS UNIQUE;
+CREATE CONSTRAINT application_id_unique IF NOT EXISTS FOR (n:Application) REQUIRE n.application_id IS UNIQUE;
+CREATE CONSTRAINT loan_id_unique     IF NOT EXISTS FOR (n:Loan)        REQUIRE n.loan_id        IS UNIQUE;
+CREATE CONSTRAINT transaction_id_unique IF NOT EXISTS FOR (n:Transaction) REQUIRE n.transaction_id IS UNIQUE;
+CREATE CONSTRAINT customer_email_unique IF NOT EXISTS FOR (n:Customer) REQUIRE n.email          IS UNIQUE;
+CREATE CONSTRAINT broker_licence_unique IF NOT EXISTS FOR (n:Broker)   REQUIRE n.license_number IS UNIQUE;
+CREATE CONSTRAINT lender_abn_unique  IF NOT EXISTS FOR (n:Lender)      REQUIRE n.abn            IS UNIQUE;
+
+
+// ------------------------------------------------------------
+// 2. NODES FROM CSV
+// ------------------------------------------------------------
+
+// 2.1 Customer  (CUSTOMER.csv)
+LOAD CSV WITH HEADERS FROM 'file:///CUSTOMER.csv' AS row
+MERGE (c:Customer {customer_id: toInteger(row.customer_id)})
+SET c.first_name        = row.first_name,
+    c.last_name         = row.last_name,
+    c.date_of_birth     = date(row.date_of_birth),
+    c.email             = row.email,
+    c.phone             = row.phone,
+    c.street            = row.street,
+    c.suburb            = row.suburb,
+    c.state             = row.state,
+    c.postcode          = row.postcode,
+    c.employment_status = row.employment_status,
+    c.annual_income     = toFloat(row.annual_income);
+
+// 2.2 Broker  (BROKER.csv)
+LOAD CSV WITH HEADERS FROM 'file:///BROKER.csv' AS row
+MERGE (b:Broker {broker_id: toInteger(row.broker_id)})
+SET b.first_name     = row.first_name,
+    b.last_name      = row.last_name,
+    b.license_number = row.license_number,
+    b.email          = row.email,
+    b.phone          = row.phone;
+
+// 2.3 Lender  (LENDER.csv)
+LOAD CSV WITH HEADERS FROM 'file:///LENDER.csv' AS row
+MERGE (l:Lender {lender_id: toInteger(row.lender_id)})
+SET l.lender_name   = row.lender_name,
+    l.abn           = row.abn,
+    l.contact_email = row.contact_email,
+    l.contact_phone = row.contact_phone;
+
+// 2.4 LoanProduct + (Lender)-[:OFFERS]->(LoanProduct)  (LOAN_PRODUCT.csv)
+LOAD CSV WITH HEADERS FROM 'file:///LOAN_PRODUCT.csv' AS row
+MERGE (p:LoanProduct {product_id: toInteger(row.product_id)})
+SET p.product_name       = row.product_name,
+    p.interest_rate_type = row.interest_rate_type,
+    p.base_interest_rate = toFloat(row.base_interest_rate),
+    p.max_lvr            = toFloat(row.max_lvr),
+    p.min_loan_amount    = toFloat(row.min_loan_amount),
+    p.max_loan_amount    = toFloat(row.max_loan_amount)
+WITH p, row
+MATCH (l:Lender {lender_id: toInteger(row.lender_id)})
+MERGE (l)-[:OFFERS]->(p);
+
+// 2.5 Property  (PROPERTY.csv)
+LOAD CSV WITH HEADERS FROM 'file:///PROPERTY.csv' AS row
+MERGE (p:Property {property_id: toInteger(row.property_id)})
+SET p.street          = row.street,
+    p.suburb          = row.suburb,
+    p.state           = row.state,
+    p.postcode        = row.postcode,
+    p.property_type   = row.property_type,
+    p.land_size_sqm   = toFloat(row.land_size_sqm),
+    p.estimated_value = toFloat(row.estimated_value);
+
+// 2.6 Valuation (weak entity) + (Property)-[:HAS_VALUATION]->(Valuation)  (PROPERTY_VALUATION.csv)
+//     Composite key (property_id, valuation_number) -> single string key valuation_id
+LOAD CSV WITH HEADERS FROM 'file:///PROPERTY_VALUATION.csv' AS row
+MATCH (p:Property {property_id: toInteger(row.property_id)})
+MERGE (v:Valuation {valuation_id: row.property_id + '-' + row.valuation_number})
+SET v.property_id       = toInteger(row.property_id),
+    v.valuation_number  = toInteger(row.valuation_number),
+    v.valuation_date    = date(row.valuation_date),
+    v.valuation_amount  = toFloat(row.valuation_amount),
+    v.valuer_name       = row.valuer_name,
+    v.valuation_method  = row.valuation_method
+MERGE (p)-[:HAS_VALUATION]->(v);
+
+
+// ------------------------------------------------------------
+// 3. M:N JUNCTION TABLE -> RELATIONSHIP WITH PROPERTIES  (PROPERTY_OWNERSHIP.csv)
+// ------------------------------------------------------------
+LOAD CSV WITH HEADERS FROM 'file:///PROPERTY_OWNERSHIP.csv' AS row
+MATCH (c:Customer {customer_id: toInteger(row.customer_id)})
+MATCH (p:Property {property_id: toInteger(row.property_id)})
+MERGE (c)-[o:OWNS]->(p)
+SET o.ownership_percentage = toFloat(row.ownership_percentage),
+    o.ownership_type       = row.ownership_type;
+
+
+// ------------------------------------------------------------
+// 4. MORTGAGE APPLICATION (relationship hub) + its 4 foreign keys  (MORTGAGE_APPLICATION.csv)
+// ------------------------------------------------------------
+LOAD CSV WITH HEADERS FROM 'file:///MORTGAGE_APPLICATION.csv' AS row
+MERGE (a:Application {application_id: toInteger(row.application_id)})
+SET a.application_date   = date(row.application_date),
+    a.requested_amount   = toFloat(row.requested_amount),
+    a.application_status = row.application_status
+WITH a, row
+MATCH (c:Customer    {customer_id: toInteger(row.customer_id)})
+MATCH (b:Broker      {broker_id:   toInteger(row.broker_id)})
+MATCH (p:Property    {property_id: toInteger(row.property_id)})
+MATCH (lp:LoanProduct {product_id: toInteger(row.product_id)})
+MERGE (c)-[:SUBMITTED]->(a)
+MERGE (b)-[:MANAGES]->(a)
+MERGE (a)-[:FOR_PROPERTY]->(p)
+MERGE (a)-[:REQUESTS_PRODUCT]->(lp);
+
+
+// ------------------------------------------------------------
+// 5. LOAN (1:1 with application)  (LOAN.csv)
+// ------------------------------------------------------------
+LOAD CSV WITH HEADERS FROM 'file:///LOAN.csv' AS row
+MATCH (a:Application {application_id: toInteger(row.application_id)})
+MERGE (l:Loan {loan_id: toInteger(row.loan_id)})
+SET l.loan_amount     = toFloat(row.loan_amount),
+    l.interest_rate   = toFloat(row.interest_rate),
+    l.loan_term_years = toInteger(row.loan_term_years),
+    l.start_date      = date(row.start_date),
+    l.loan_status     = row.loan_status
+MERGE (a)-[:RESULTED_IN]->(l);
+
+
+// ------------------------------------------------------------
+// 6. TRANSACTION superclass + REPAYMENT / DISBURSEMENT subclasses as extra labels
+//    (TRANSACTION.csv = TRANSACTION_ LEFT JOIN REPAYMENT LEFT JOIN DISBURSEMENT)
+// ------------------------------------------------------------
+LOAD CSV WITH HEADERS FROM 'file:///TRANSACTION.csv' AS row
+MATCH (l:Loan {loan_id: toInteger(row.loan_id)})
+MERGE (t:Transaction {transaction_id: toInteger(row.transaction_id)})
+SET t.transaction_date = date(row.transaction_date),
+    t.amount           = toFloat(row.amount),
+    t.transaction_type = row.transaction_type,
+    t.description      = row.description
+MERGE (l)-[:HAS_TRANSACTION]->(t)
+FOREACH (_ IN CASE WHEN row.transaction_type = 'Repayment' THEN [1] ELSE [] END |
+    SET t:Repayment,
+        t.principal_portion = toFloat(row.principal_portion),
+        t.interest_portion  = toFloat(row.interest_portion),
+        t.payment_method    = row.payment_method)
+FOREACH (_ IN CASE WHEN row.transaction_type = 'Disbursement' THEN [1] ELSE [] END |
+    SET t:Disbursement,
+        t.disbursement_method = row.disbursement_method,
+        t.purpose_description = row.purpose_description);
+
+
+// ------------------------------------------------------------
+// 7. ADDITIONAL INDEXES (for query performance on common filter columns)
+//    Range indexes - Neo4j 5 default for CREATE INDEX
+// ------------------------------------------------------------
+CREATE INDEX customer_suburb_idx      IF NOT EXISTS FOR (c:Customer)    ON (c.suburb);
+CREATE INDEX customer_income_idx      IF NOT EXISTS FOR (c:Customer)    ON (c.annual_income);
+CREATE INDEX customer_lastname_idx    IF NOT EXISTS FOR (c:Customer)    ON (c.last_name);
+CREATE INDEX property_suburb_idx      IF NOT EXISTS FOR (p:Property)    ON (p.suburb);
+CREATE INDEX product_ratetype_idx     IF NOT EXISTS FOR (p:LoanProduct) ON (p.interest_rate_type);
+CREATE INDEX application_status_idx   IF NOT EXISTS FOR (a:Application) ON (a.application_status);
+CREATE INDEX loan_status_idx          IF NOT EXISTS FOR (l:Loan)        ON (l.loan_status);
+CREATE INDEX transaction_type_idx     IF NOT EXISTS FOR (t:Transaction) ON (t.transaction_type);
+// Composite index example
+CREATE INDEX loan_status_rate_idx     IF NOT EXISTS FOR (l:Loan)        ON (l.loan_status, l.interest_rate);
+// Full-text index example (name search)
+CREATE FULLTEXT INDEX customer_name_ft IF NOT EXISTS FOR (c:Customer) ON EACH [c.first_name, c.last_name];
+
+SHOW INDEXES;
+SHOW CONSTRAINTS;
+
+
+// ------------------------------------------------------------
+// 8. VERIFY THE MIGRATION (expected: 72 nodes, 89 relationships)
+// ------------------------------------------------------------
+MATCH (n) RETURN labels(n) AS labels, count(*) AS nodes ORDER BY nodes DESC;
+
+MATCH ()-[r]->() RETURN type(r) AS relationship, count(*) AS total ORDER BY total DESC;

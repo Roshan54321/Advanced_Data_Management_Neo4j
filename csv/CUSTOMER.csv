@@ -1,0 +1,9 @@
+customer_id,first_name,last_name,date_of_birth,email,phone,street,suburb,state,postcode,employment_status,annual_income
+1,Liam,Anderson,1988-03-14,liam.anderson@example.com,0412 111 222,12 Casuarina Dr,Casuarina,NT,0810,Full-Time,95000
+2,Sophie,Baker,1990-07-22,sophie.baker@example.com,0412 222 333,5 Nightcliff Rd,Nightcliff,NT,0810,Full-Time,112000
+3,Ethan,Chen,1985-11-02,ethan.chen@example.com,0412 333 444,8 Fannie Bay Cres,Fannie Bay,NT,0820,Self-Employed,145000
+4,Olivia,Davies,1993-05-30,olivia.davies@example.com,0412 444 555,21 Palmerston Cir,Palmerston,NT,0830,Part-Time,58000
+5,Noah,Evans,1979-09-18,noah.evans@example.com,0412 555 666,3 Larrakeyah St,Larrakeyah,NT,0820,Full-Time,102000
+6,Ava,Foster,1996-01-08,ava.foster@example.com,0412 666 777,44 Marrara Dr,Marrara,NT,0812,Casual,48000
+7,Jack,Grant,1982-06-25,jack.grant@example.com,0412 777 888,17 Rapid Creek Rd,Rapid Creek,NT,0810,Full-Time,128000
+8,Mia,Harris,1991-12-12,mia.harris@example.com,0412 888 999,9 Coconut Grove Rd,Coconut Grove,NT,0810,Self-Employed,89000

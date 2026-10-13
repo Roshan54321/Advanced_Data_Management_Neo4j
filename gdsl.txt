@@ -1,0 +1,200 @@
+// ============================================================
+// Tasks 4 & 5: Graph Data Science (gds.txt)
+// ============================================================
+
+
+// ############################################################
+// TASK 4 - CENTRALITY
+// Use case: Who/what are the most influential hubs in the finance network?
+// Which brokers, lenders, products and properties are critical connectors
+// (concentration / key-person risk)?
+// ############################################################
+
+// 4.1 Project the finance network (undirected, transactions & valuations excluded: leaf nodes)
+CALL gds.graph.drop('finance', false) YIELD graphName;
+
+CALL gds.graph.project(
+  'finance',
+  ['Customer','Broker','Lender','LoanProduct','Property','Application','Loan'],
+  {
+    SUBMITTED:        {orientation: 'UNDIRECTED'},
+    MANAGES:          {orientation: 'UNDIRECTED'},
+    FOR_PROPERTY:     {orientation: 'UNDIRECTED'},
+    REQUESTS_PRODUCT: {orientation: 'UNDIRECTED'},
+    OFFERS:           {orientation: 'UNDIRECTED'},
+    RESULTED_IN:      {orientation: 'UNDIRECTED'},
+    OWNS:             {orientation: 'UNDIRECTED'}
+  }
+) YIELD graphName, nodeCount, relationshipCount;
+
+// 4.2 Degree centrality - most directly connected nodes
+CALL gds.degree.stream('finance')
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       score AS degree
+ORDER BY degree DESC LIMIT 10;
+
+// 4.3 PageRank - influence from the quality of connections
+CALL gds.pageRank.stream('finance', {maxIterations: 50, dampingFactor: 0.85})
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 4) AS pagerank
+ORDER BY pagerank DESC LIMIT 10;
+
+// 4.4 Betweenness - nodes that sit on the shortest paths between others (brokers / products as bridges)
+CALL gds.betweenness.stream('finance')
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 2) AS betweenness
+ORDER BY betweenness DESC LIMIT 10;
+
+// 4.5 Closeness - nodes that can reach all others in the fewest steps
+CALL gds.closeness.stream('finance')
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 4) AS closeness
+ORDER BY closeness DESC LIMIT 10;
+
+// 4.6 Harmonic closeness (robust to disconnected graphs)
+CALL gds.closeness.harmonic.stream('finance')
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 4) AS harmonic
+ORDER BY harmonic DESC LIMIT 10;
+
+// 4.7 Eigenvector centrality and ArticleRank
+CALL gds.eigenvector.stream('finance', {maxIterations: 100})
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 4) AS eigenvector
+ORDER BY eigenvector DESC LIMIT 10;
+
+CALL gds.articleRank.stream('finance')
+YIELD nodeId, score
+WITH gds.util.asNode(nodeId) AS n, score
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.last_name, n.street, toString(n.application_id), toString(n.loan_id)) AS name,
+       round(score, 4) AS articlerank
+ORDER BY articlerank DESC LIMIT 10;
+
+// 4.8 Write all scores back and compare algorithms side by side (business-facing table)
+CALL gds.degree.write('finance',      {writeProperty: 'c_degree'})      YIELD nodePropertiesWritten AS d;
+CALL gds.pageRank.write('finance',    {writeProperty: 'c_pagerank'})    YIELD nodePropertiesWritten AS p;
+CALL gds.betweenness.write('finance', {writeProperty: 'c_betweenness'}) YIELD nodePropertiesWritten AS b;
+CALL gds.closeness.write('finance',   {writeProperty: 'c_closeness'})   YIELD nodePropertiesWritten AS c;
+
+// Key-person / concentration view: brokers and lenders ranked by betweenness
+MATCH (n)
+WHERE n:Broker OR n:Lender OR n:LoanProduct
+RETURN labels(n)[0] AS type,
+       coalesce(n.lender_name, n.product_name, n.first_name + ' ' + n.last_name) AS name,
+       n.c_degree AS degree,
+       round(n.c_pagerank, 4)    AS pagerank,
+       round(n.c_betweenness, 2) AS betweenness,
+       round(n.c_closeness, 4)   AS closeness
+ORDER BY betweenness DESC;
+
+
+// ############################################################
+// TASK 5 - SIMILARITY
+// Use case: Customer segmentation / product recommendation.
+// (a) Find customers with similar borrowing behaviour (applied for the same products)
+//     -> Node Similarity (Jaccard, Overlap, Cosine) and recommend products the
+//        similar customer has applied for but this customer has not.
+// (b) Find customers with similar financial profile (income, age) -> KNN.
+// ############################################################
+
+// 5.1 Project bipartite Customer -> LoanProduct graph derived from the application path
+CALL gds.graph.drop('custProduct', false) YIELD graphName;
+
+MATCH (c:Customer)-[:SUBMITTED]->(:Application)-[:REQUESTS_PRODUCT]->(p:LoanProduct)
+WITH gds.graph.project('custProduct', c, p) AS g
+RETURN g.graphName AS graph, g.nodeCount AS nodes, g.relationshipCount AS relationships;
+
+// 5.2 Node Similarity - Jaccard
+CALL gds.nodeSimilarity.stream('custProduct', {similarityMetric: 'JACCARD', similarityCutoff: 0.0})
+YIELD node1, node2, similarity
+WITH gds.util.asNode(node1) AS a, gds.util.asNode(node2) AS b, similarity
+WHERE a.customer_id < b.customer_id
+RETURN a.first_name + ' ' + a.last_name AS customer_1,
+       b.first_name + ' ' + b.last_name AS customer_2,
+       round(similarity, 3) AS jaccard
+ORDER BY jaccard DESC;
+
+// 5.3 Node Similarity - Overlap coefficient (handles customers with different numbers of applications)
+CALL gds.nodeSimilarity.stream('custProduct', {similarityMetric: 'OVERLAP', similarityCutoff: 0.0})
+YIELD node1, node2, similarity
+WITH gds.util.asNode(node1) AS a, gds.util.asNode(node2) AS b, similarity
+WHERE a.customer_id < b.customer_id
+RETURN a.first_name + ' ' + a.last_name AS customer_1,
+       b.first_name + ' ' + b.last_name AS customer_2,
+       round(similarity, 3) AS overlap
+ORDER BY overlap DESC;
+
+// 5.4 Node Similarity - Cosine
+CALL gds.nodeSimilarity.stream('custProduct', {similarityMetric: 'COSINE', similarityCutoff: 0.0})
+YIELD node1, node2, similarity
+WITH gds.util.asNode(node1) AS a, gds.util.asNode(node2) AS b, similarity
+WHERE a.customer_id < b.customer_id
+RETURN a.first_name + ' ' + a.last_name AS customer_1,
+       b.first_name + ' ' + b.last_name AS customer_2,
+       round(similarity, 3) AS cosine
+ORDER BY cosine DESC;
+
+// 5.5 Top-K similar customers per customer + product recommendations
+CALL gds.nodeSimilarity.stream('custProduct', {topK: 2, similarityCutoff: 0.0})
+YIELD node1, node2, similarity
+WITH gds.util.asNode(node1) AS target, gds.util.asNode(node2) AS peer, similarity
+MATCH (peer)-[:SUBMITTED]->(:Application)-[:REQUESTS_PRODUCT]->(rec:LoanProduct)
+WHERE NOT EXISTS {
+  MATCH (target)-[:SUBMITTED]->(:Application)-[:REQUESTS_PRODUCT]->(rec)
+}
+RETURN target.first_name + ' ' + target.last_name AS customer,
+       peer.first_name   + ' ' + peer.last_name   AS similar_customer,
+       round(similarity, 3) AS similarity,
+       collect(DISTINCT rec.product_name)          AS recommended_products
+ORDER BY customer, similarity DESC;
+
+// 5.6 Write similarity as relationships for reuse in later queries
+CALL gds.nodeSimilarity.write('custProduct', {
+  similarityMetric: 'JACCARD', similarityCutoff: 0.0,
+  writeRelationshipType: 'SIMILAR_TO', writeProperty: 'jaccard'
+}) YIELD nodesCompared, relationshipsWritten;
+
+// 5.7 KNN on financial profile (income and age) - a different similarity algorithm family
+CALL gds.graph.drop('custProfile', false) YIELD graphName;
+
+MATCH (c:Customer)
+WITH gds.graph.project(
+  'custProfile', c, null,
+  { 
+    sourceNodeProperties: c { .annual_income, age: duration.between(c.date_of_birth, date('2026-10-13')).years },
+    targetNodeProperties: null 
+  }
+) AS g
+RETURN g.graphName AS graph, g.nodeCount AS nodes;
+
+CALL gds.knn.stream('custProfile', {
+  nodeProperties: {annual_income: 'EUCLIDEAN', age: 'EUCLIDEAN'},
+  topK: 2, sampleRate: 1.0, deltaThreshold: 0.0, randomSeed: 42, concurrency: 1
+})
+YIELD node1, node2, similarity
+WITH gds.util.asNode(node1) AS a, gds.util.asNode(node2) AS b, similarity
+RETURN a.first_name + ' ' + a.last_name AS customer,
+       a.annual_income AS income,
+       b.first_name + ' ' + b.last_name AS most_similar_profile,
+       b.annual_income AS peer_income,
+       round(similarity, 3) AS knn_similarity
+ORDER BY customer, knn_similarity DESC;

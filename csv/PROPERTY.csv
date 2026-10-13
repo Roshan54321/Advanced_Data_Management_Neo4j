@@ -1,0 +1,9 @@
+property_id,street,suburb,state,postcode,property_type,land_size_sqm,estimated_value
+1,12 Casuarina Dr,Casuarina,NT,0810,Residential,650,620000
+2,5 Nightcliff Rd,Nightcliff,NT,0810,Residential,480,545000
+3,8 Fannie Bay Cres,Fannie Bay,NT,0820,Residential,900,890000
+4,21 Palmerston Cir,Palmerston,NT,0830,Residential,550,410000
+5,3 Larrakeyah St,Larrakeyah,NT,0820,Residential,720,715000
+6,44 Marrara Dr,Marrara,NT,0812,Residential,500,375000
+7,101 Cavenagh St,Darwin City,NT,0800,Commercial,300,980000
+8,17 Rapid Creek Rd,Rapid Creek,NT,0810,Residential,600,505000

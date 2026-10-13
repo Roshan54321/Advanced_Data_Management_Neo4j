@@ -1,0 +1,11 @@
+customer_id,property_id,ownership_percentage,ownership_type
+1,1,100,Sole
+2,2,50,Joint Tenants
+3,2,50,Joint Tenants
+3,3,100,Sole
+4,4,100,Sole
+5,5,70,Tenants in Common
+6,5,30,Tenants in Common
+1,6,100,Sole
+7,7,100,Sole
+8,8,100,Sole
